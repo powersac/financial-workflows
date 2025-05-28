@@ -6,7 +6,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import threading
 from typing import Optional
-from models import SalesforceDataManager, SalesforceConnection
+from models import SalesforceConnection
+from salesforce_data_manager import SalesforceDataManager
 
 
 class SalesforceGUI:

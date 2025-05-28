@@ -1,70 +1,12 @@
 """
-Data models for Salesforce integration
+Manager class for handling Salesforce data operations
 """
 
-from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
-from datetime import datetime
-
-
-@dataclass
-class SalesforceConnection:
-    """Model for Salesforce connection configuration"""
-    instance_url: str
-    access_token: Optional[str] = None
-    refresh_token: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    is_connected: bool = False
-
-
-@dataclass
-class SalesforceRecord:
-    """Generic model for Salesforce records"""
-    id: str
-    object_type: str
-    fields: Dict[str, Any]
-    created_date: Optional[datetime] = None
-    modified_date: Optional[datetime] = None
-
-
-@dataclass
-class Account:
-    """Model for Salesforce Account object"""
-    id: str
-    name: str
-    type: Optional[str] = None
-    industry: Optional[str] = None
-    annual_revenue: Optional[float] = None
-    phone: Optional[str] = None
-    website: Optional[str] = None
-    created_date: Optional[datetime] = None
-
-
-@dataclass
-class Contact:
-    """Model for Salesforce Contact object"""
-    id: str
-    first_name: str
-    last_name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    account_id: Optional[str] = None
-    title: Optional[str] = None
-    created_date: Optional[datetime] = None
-
-
-@dataclass
-class Opportunity:
-    """Model for Salesforce Opportunity object"""
-    id: str
-    name: str
-    stage_name: str
-    amount: Optional[float] = None
-    close_date: Optional[datetime] = None
-    account_id: Optional[str] = None
-    probability: Optional[int] = None
-    created_date: Optional[datetime] = None
+from .models.salesforce_connection import SalesforceConnection
+from .models.account import Account
+from .models.contact import Contact
+from .models.opportunity import Opportunity
 
 
 class SalesforceDataManager:
