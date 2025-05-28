@@ -1,0 +1,23 @@
+# Salesforce Configuration Example
+# Copy this file to config.txt and fill in your actual values
+
+# Salesforce Instance URL
+SALESFORCE_INSTANCE_URL=https://your-company.my.salesforce.com
+
+# Salesforce Connected App Credentials
+SALESFORCE_CLIENT_ID=your_consumer_key_here
+SALESFORCE_CLIENT_SECRET=your_consumer_secret_here
+SALESFORCE_REDIRECT_URI=http://localhost:8080/callback
+
+# Salesforce User Credentials (Alternative to OAuth)
+SALESFORCE_USERNAME=your_username@company.com
+SALESFORCE_PASSWORD=your_password
+SALESFORCE_SECURITY_TOKEN=your_security_token
+
+# API Settings
+SALESFORCE_API_VERSION=v58.0
+SALESFORCE_DOMAIN=login  # or 'test' for sandbox
+
+# Application Settings
+DEBUG_MODE=True
+LOG_LEVEL=INFO 
