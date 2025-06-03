@@ -6,8 +6,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import threading
 from typing import Optional
-from models import SalesforceConnection
-from salesforce_data_manager import SalesforceDataManager
+from dotenv import load_dotenv
+from simple_salesforce import Salesforce
+from config import SalesforceConfig
 
 
 class SalesforceGUI:
@@ -19,8 +20,14 @@ class SalesforceGUI:
         self.root.geometry("800x600")
         self.root.configure(bg='#f0f0f0')
         
-        # Initialize data manager
-        self.data_manager = SalesforceDataManager()
+        # Load environment variables
+        load_dotenv()
+        
+        # Get Salesforce configuration
+        self.config = SalesforceConfig.get_config()
+        
+        # Initialize connection
+        self.sf: Optional[Salesforce] = None
         
         # Setup GUI components
         self.setup_gui()
@@ -49,15 +56,15 @@ class SalesforceGUI:
         
         # Instance URL
         ttk.Label(connection_frame, text="Instance URL:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.instance_url_var = tk.StringVar(value="https://your-instance.salesforce.com")
+        self.instance_url_var = tk.StringVar(value=self.config['instance_url'])
         instance_url_entry = ttk.Entry(connection_frame, textvariable=self.instance_url_var, width=50)
         instance_url_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
         
         # Connection status
         self.connection_status_var = tk.StringVar(value="Not Connected")
-        status_label = ttk.Label(connection_frame, textvariable=self.connection_status_var, 
+        self.status_label = ttk.Label(connection_frame, textvariable=self.connection_status_var, 
                                 foreground="red")
-        status_label.grid(row=0, column=2, sticky=tk.E)
+        self.status_label.grid(row=0, column=2, sticky=tk.E)
         
         # Action buttons section
         button_frame = ttk.Frame(main_frame)
@@ -108,71 +115,51 @@ class SalesforceGUI:
         status_label = ttk.Label(status_frame, textvariable=self.status_var)
         status_label.grid(row=0, column=0, sticky=tk.W)
         
-    def log_message(self, message: str):
-        """Add a message to the output text area"""
-        self.output_text.insert(tk.END, f"{message}\n")
-        self.output_text.see(tk.END)
-        
-    def update_status(self, status: str):
-        """Update the status bar"""
-        self.status_var.set(status)
-        self.root.update_idletasks()
-        
     def connect_to_salesforce(self):
         """Handle Salesforce connection"""
         try:
             self.update_status("Connecting to Salesforce...")
             self.progress_var.set(25)
             
-            instance_url = self.instance_url_var.get().strip()
-            if not instance_url:
-                messagebox.showerror("Error", "Please enter a valid instance URL")
-                return
+            # Create connection using credentials from .env
+            self.sf = Salesforce(
+                username=self.config['username'],
+                password=self.config['password'],
+                security_token=self.config['security_token'],
+                instance_url=self.config['instance_url']
+            )
             
-            # Create connection object (authentication will be implemented later)
-            connection = SalesforceConnection(instance_url=instance_url)
-            self.data_manager.set_connection(connection)
+            # Test connection with a simple query
+            self.sf.query("SELECT Id FROM Account LIMIT 1")
             
-            # Simulate connection process
-            self.root.after(1000, self._complete_connection)
+            # Update UI
+            self.connection_status_var.set("Connected")
+            self.status_label.configure(foreground="green")
+            self.retrieve_btn.configure(state='normal')
+            self.clear_btn.configure(state='normal')
+            self.pipeline_btn.configure(state='normal')
+            
+            self.log_message("✓ Successfully connected to Salesforce")
+            self.update_status("Connected - Ready to retrieve data")
             
         except Exception as e:
             self.log_message(f"Connection failed: {str(e)}")
             self.update_status("Connection failed")
             self.progress_var.set(0)
-            messagebox.showerror("Connection Error", f"Failed to connect: {str(e)}")
-    
-    def _complete_connection(self):
-        """Complete the connection process"""
-        self.progress_var.set(100)
-        self.connection_status_var.set("Connected")
-        
-        # Update connection status colors
-        for widget in self.root.winfo_children():
-            if isinstance(widget, ttk.Frame):
-                for child in widget.winfo_children():
-                    if isinstance(child, ttk.LabelFrame):
-                        for grandchild in child.winfo_children():
-                            if isinstance(grandchild, ttk.Label) and "Connected" in str(grandchild.cget('text')):
-                                grandchild.configure(foreground="green")
-        
-        # Enable buttons
-        self.retrieve_btn.configure(state='normal')
-        self.clear_btn.configure(state='normal')
-        self.pipeline_btn.configure(state='normal')
-        
-        self.log_message("✓ Successfully connected to Salesforce")
-        self.log_message("Ready to retrieve data. Click 'Retrieve Salesforce Data' to begin.")
-        self.update_status("Connected - Ready to retrieve data")
-        self.progress_var.set(0)
+            messagebox.showerror("Connection Error", 
+                               "Failed to connect to Salesforce. Please check your credentials in the .env file.")
     
     def retrieve_salesforce_data(self):
         """Handle Salesforce data retrieval"""
+        if not self.sf:
+            messagebox.showerror("Error", "Not connected to Salesforce")
+            return
+            
         try:
             self.update_status("Retrieving Salesforce data...")
             self.log_message("Starting data retrieval from Salesforce...")
             
-            # Run data retrieval in a separate thread to prevent GUI freezing
+            # Run data retrieval in a separate thread
             thread = threading.Thread(target=self._retrieve_data_thread)
             thread.daemon = True
             thread.start()
@@ -185,85 +172,108 @@ class SalesforceGUI:
     def _retrieve_data_thread(self):
         """Perform data retrieval in a separate thread"""
         try:
-            # Simulate data retrieval steps
-            steps = [
-                ("Authenticating with Salesforce API...", 20),
-                ("Retrieving Account data...", 40),
-                ("Retrieving Contact data...", 60),
-                ("Retrieving Opportunity data...", 80),
-                ("Processing retrieved data...", 100)
-            ]
+            # Query Accounts
+            self.root.after(0, lambda: self.log_message("Querying Accounts..."))
+            self.root.after(0, lambda: self.progress_var.set(20))
             
-            for message, progress in steps:
-                self.root.after(0, lambda msg=message: self.log_message(msg))
-                self.root.after(0, lambda p=progress: self.progress_var.set(p))
-                self.root.after(0, lambda msg=message: self.update_status(msg))
-                threading.Event().wait(1)  # Simulate processing time
+            accounts = self.sf.query("""
+                SELECT Id, Name, Type, Industry, BillingCity, BillingCountry 
+                FROM Account 
+                ORDER BY CreatedDate DESC 
+                LIMIT 10
+            """)
             
-            # Simulate successful data retrieval
-            self.root.after(0, self._complete_data_retrieval)
+            self.root.after(0, lambda: self.log_message(f"Found {len(accounts['records'])} accounts"))
+            self.root.after(0, lambda: self.progress_var.set(40))
+            
+            # Query Opportunities
+            self.root.after(0, lambda: self.log_message("Querying Opportunities..."))
+            opportunities = self.sf.query("""
+                SELECT Id, Name, StageName, Amount, CloseDate 
+                FROM Opportunity 
+                WHERE IsClosed = false
+                ORDER BY CreatedDate DESC 
+                LIMIT 10
+            """)
+            
+            self.root.after(0, lambda: self.log_message(f"Found {len(opportunities['records'])} open opportunities"))
+            self.root.after(0, lambda: self.progress_var.set(100))
+            
+            # Display results
+            self.root.after(0, lambda: self._display_results(accounts['records'], opportunities['records']))
             
         except Exception as e:
             self.root.after(0, lambda: self.log_message(f"Error in data retrieval: {str(e)}"))
             self.root.after(0, lambda: self.update_status("Data retrieval failed"))
             self.root.after(0, lambda: self.progress_var.set(0))
     
-    def _complete_data_retrieval(self):
-        """Complete the data retrieval process"""
-        self.log_message("✓ Data retrieval completed successfully!")
-        self.log_message("Summary:")
-        self.log_message("  - Accounts: 0 (API integration pending)")
-        self.log_message("  - Contacts: 0 (API integration pending)")
-        self.log_message("  - Opportunities: 0 (API integration pending)")
-        self.log_message("\nNote: Actual Salesforce API integration will be implemented in the next step.")
+    def _display_results(self, accounts, opportunities):
+        """Display the retrieved results"""
+        self.log_message("\nAccount Summary:")
+        for account in accounts:
+            self.log_message("-" * 50)
+            self.log_message(f"Name: {account['Name']}")
+            self.log_message(f"Type: {account.get('Type', 'N/A')}")
+            self.log_message(f"Industry: {account.get('Industry', 'N/A')}")
+            self.log_message(f"Location: {account.get('BillingCity', 'N/A')}, {account.get('BillingCountry', 'N/A')}")
+        
+        self.log_message("\nOpen Opportunities:")
+        for opp in opportunities:
+            self.log_message("-" * 50)
+            self.log_message(f"Name: {opp['Name']}")
+            self.log_message(f"Stage: {opp['StageName']}")
+            self.log_message(f"Amount: ${opp.get('Amount', 0):,.2f}")
+            self.log_message(f"Close Date: {opp['CloseDate']}")
         
         self.update_status("Data retrieval completed")
         self.progress_var.set(0)
     
     def clear_data(self):
-        """Clear all data from the manager and output"""
-        self.data_manager.clear_data()
+        """Clear all data from the output"""
         self.output_text.delete(1.0, tk.END)
         self.log_message("All data cleared.")
         self.update_status("Data cleared - Ready")
     
     def run_pipeline_analysis(self):
-        """Handle pipeline analysis - function ready for your implementation"""
+        """Handle pipeline analysis"""
+        if not self.sf:
+            messagebox.showerror("Error", "Not connected to Salesforce")
+            return
+            
         try:
             self.update_status("Running pipeline analysis...")
             self.log_message("Starting pipeline analysis...")
             
-            # TODO: Add your pipeline analysis logic here
-            # This is where you can implement your specific pipeline analysis functionality
+            # Query pipeline data
+            pipeline_data = self.sf.query("""
+                SELECT StageName, COUNT(Id) RecordCount, SUM(Amount) TotalAmount
+                FROM Opportunity 
+                WHERE IsClosed = false
+                GROUP BY StageName
+                ORDER BY StageName
+            """)
             
-            # Example structure - replace with your actual implementation:
-            self.log_message("Pipeline Analysis Steps:")
-            self.log_message("1. [TODO] Analyze opportunity pipeline data")
-            self.log_message("2. [TODO] Calculate conversion rates")
-            self.log_message("3. [TODO] Generate forecasting metrics")
-            self.log_message("4. [TODO] Identify bottlenecks")
-            self.log_message("5. [TODO] Create recommendations")
+            # Display results
+            self.log_message("\nPipeline Analysis Results:")
+            self.log_message("-" * 50)
             
-            # You can access the retrieved Salesforce data through:
-            # - self.data_manager.accounts
-            # - self.data_manager.contacts  
-            # - self.data_manager.opportunities
+            total_amount = 0
+            total_deals = 0
             
-            # Example of checking available data:
-            num_accounts = len(self.data_manager.accounts)
-            num_contacts = len(self.data_manager.contacts)
-            num_opportunities = len(self.data_manager.opportunities)
+            for stage in pipeline_data['records']:
+                count = int(stage['RecordCount'])
+                amount = float(stage.get('TotalAmount', 0))
+                total_amount += amount
+                total_deals += count
+                
+                self.log_message(f"Stage: {stage['StageName']}")
+                self.log_message(f"Number of Deals: {count}")
+                self.log_message(f"Total Value: ${amount:,.2f}")
+                self.log_message("-" * 50)
             
-            self.log_message(f"\nAvailable data for analysis:")
-            self.log_message(f"  - Accounts: {num_accounts}")
-            self.log_message(f"  - Contacts: {num_contacts}")
-            self.log_message(f"  - Opportunities: {num_opportunities}")
-            
-            if num_opportunities == 0:
-                self.log_message("\nNote: No opportunity data available. Run 'Retrieve Salesforce Data' first.")
-            else:
-                self.log_message("\n✓ Pipeline analysis framework ready!")
-                self.log_message("TODO: Implement your specific analysis logic in the run_pipeline_analysis() function.")
+            self.log_message(f"\nTotal Pipeline:")
+            self.log_message(f"Total Deals: {total_deals}")
+            self.log_message(f"Total Value: ${total_amount:,.2f}")
             
             self.update_status("Pipeline analysis completed")
             
@@ -271,6 +281,16 @@ class SalesforceGUI:
             self.log_message(f"Pipeline analysis failed: {str(e)}")
             self.update_status("Pipeline analysis failed")
             messagebox.showerror("Analysis Error", f"Failed to run pipeline analysis: {str(e)}")
+    
+    def log_message(self, message: str):
+        """Add a message to the output text area"""
+        self.output_text.insert(tk.END, f"{message}\n")
+        self.output_text.see(tk.END)
+        
+    def update_status(self, status: str):
+        """Update the status bar"""
+        self.status_var.set(status)
+        self.root.update_idletasks()
 
 
 def main():

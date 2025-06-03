@@ -3,10 +3,10 @@ Manager class for handling Salesforce data operations
 """
 
 from typing import List, Optional, Dict, Any
-from .models.salesforce_connection import SalesforceConnection
-from .models.account import Account
-from .models.contact import Contact
-from .models.opportunity import Opportunity
+from models.salesforce_connection import SalesforceConnection
+from models.account import Account
+from models.contact import Contact
+from models.opportunity import Opportunity
 
 
 class SalesforceDataManager:

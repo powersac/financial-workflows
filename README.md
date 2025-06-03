@@ -1,70 +1,71 @@
 # Salesforce Data Retrieval Tool
 
-A Python GUI application for retrieving and managing Salesforce data via API integration.
+A Python-based GUI application for retrieving and analyzing Salesforce data.
+
+## Features
+
+- Connect to Salesforce using username-password authentication
+- View recent Accounts and their details
+- Track open Opportunities
+- Analyze sales pipeline by stage
+- Real-time data retrieval and display
+- Clean and intuitive user interface
+
+## Setup
+
+1. Clone the repository:
+```bash
+git clone [your-repository-url]
+cd FinancialWorkflows
+```
+
+2. Install dependencies:
+```bash
+pip install python-dotenv simple-salesforce
+```
+
+3. Configure your Salesforce credentials:
+   - Create a `.env` file in the root directory
+   - Add your Salesforce credentials:
+```
+SALESFORCE_INSTANCE_URL=https://your-instance.salesforce.com
+SALESFORCE_USERNAME=your.email@example.com
+SALESFORCE_PASSWORD=your_password
+SALESFORCE_SECURITY_TOKEN=your_security_token
+```
+
+## Running the Application
+
+```bash
+cd src
+python main.py
+```
 
 ## Project Structure
 
 ```
-FinanceWorkflows/
-│
+FinancialWorkflows/
 ├── src/
-│   ├── models.py      # Data models for Salesforce objects
-│   └── main.py        # Main GUI application
-│
-├── requirements.txt   # Python dependencies
-└── README.md         # This file
+│   ├── main.py           # Main application file
+│   └── config.py         # Configuration management
+├── .env                  # Salesforce credentials (not in git)
+├── .gitignore           # Git ignore file
+└── README.md            # This file
 ```
 
-## Features
+## Security Notes
 
-- **Modern GUI Interface**: Built with tkinter for cross-platform compatibility
-- **Salesforce Connection Management**: Easy connection setup with instance URL
-- **Data Models**: Pre-defined models for Accounts, Contacts, and Opportunities
-- **Progress Tracking**: Visual progress bar and status updates
-- **Threaded Operations**: Non-blocking data retrieval to keep GUI responsive
-- **Error Handling**: Comprehensive error handling and user feedback
+- Never commit your `.env` file to version control
+- Keep your security token safe
+- Reset your security token if you suspect it's been compromised
 
-## Prerequisites
+## Development
 
-- Python 3.8 or higher
-- Active Salesforce account with API access
-- Salesforce Connected App (for API integration)
-
-## Installation
-
-1. **Clone or navigate to the project directory**:
-   ```bash
-   cd /c/Users/Jonathan\ Jackson/Projects/FinanceWorkflows
-   ```
-
-2. **Create a virtual environment (recommended)**:
-   ```bash
-   python -m venv venv
-   
-   # On Windows
-   venv\Scripts\activate
-   
-   # On macOS/Linux
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Running the Application
-
-1. **Start the GUI application**:
-   ```bash
-   python src/main.py
-   ```
-
-2. **Using the Application**:
-   - Enter your Salesforce instance URL (e.g., `https://your-company.my.salesforce.com`)
-   - Click "Connect to Salesforce" to establish connection
-   - Once connected, click "Retrieve Salesforce Data" to fetch data
-   - Use "Clear Data" to reset the application
+This project uses:
+- Python 3.x
+- tkinter for the GUI
+- simple-salesforce for Salesforce API integration
+- python-dotenv for environment variable management
 
 ## Current Status
 
