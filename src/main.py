@@ -1,313 +1,238 @@
 """
-Main application file for Salesforce Data Retrieval GUI
+Main application for Salesforce pipeline analysis
 """
 
+import os
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
-import threading
-from typing import Optional
-from dotenv import load_dotenv
+from tkinter import ttk, messagebox
+from datetime import datetime
 from simple_salesforce import Salesforce
-from config import SalesforceConfig
 
+from src.services.report_service import SalesforceReportService
 
-class SalesforceGUI:
-    """Main GUI application for Salesforce data retrieval"""
+def get_env_var(key, alt_key=None):
+    """Get environment variable with fallback to alternative key"""
+    value = os.environ.get(key)
+    if value is None and alt_key:
+        value = os.environ.get(alt_key)
+    return value
+
+def load_env_file(env_path):
+    """Load environment variables from file"""
+    if not os.path.exists(env_path):
+        raise FileNotFoundError(f"Environment file not found at: {env_path}")
     
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Salesforce Data Retrieval Tool")
-        self.root.geometry("800x600")
-        self.root.configure(bg='#f0f0f0')
-        
-        # Load environment variables
-        load_dotenv()
-        
-        # Get Salesforce configuration
-        self.config = SalesforceConfig.get_config()
-        
-        # Initialize connection
-        self.sf: Optional[Salesforce] = None
-        
-        # Setup GUI components
-        self.setup_gui()
-        
-    def setup_gui(self):
-        """Setup the main GUI components"""
-        # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(3, weight=1)
-        
-        # Title
-        title_label = ttk.Label(main_frame, text="Salesforce Data Retrieval Tool", 
-                               font=('Arial', 16, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
-        
-        # Connection section
-        connection_frame = ttk.LabelFrame(main_frame, text="Connection Settings", padding="10")
-        connection_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
-        connection_frame.columnconfigure(1, weight=1)
-        
-        # Instance URL
-        ttk.Label(connection_frame, text="Instance URL:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.instance_url_var = tk.StringVar(value=self.config['instance_url'])
-        instance_url_entry = ttk.Entry(connection_frame, textvariable=self.instance_url_var, width=50)
-        instance_url_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
-        
-        # Connection status
-        self.connection_status_var = tk.StringVar(value="Not Connected")
-        self.status_label = ttk.Label(connection_frame, textvariable=self.connection_status_var, 
-                                foreground="red")
-        self.status_label.grid(row=0, column=2, sticky=tk.E)
-        
-        # Action buttons section
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=2, column=0, columnspan=3, pady=10)
-        
-        # Connect button
-        self.connect_btn = ttk.Button(button_frame, text="Connect to Salesforce", 
-                                     command=self.connect_to_salesforce)
-        self.connect_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # Retrieve data button
-        self.retrieve_btn = ttk.Button(button_frame, text="Retrieve Salesforce Data", 
-                                      command=self.retrieve_salesforce_data, state='disabled')
-        self.retrieve_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # Clear data button
-        self.clear_btn = ttk.Button(button_frame, text="Clear Data", 
-                                   command=self.clear_data, state='disabled')
-        self.clear_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # Run Pipeline Analysis button
-        self.pipeline_btn = ttk.Button(button_frame, text="Run Pipeline Analysis", 
-                                      command=self.run_pipeline_analysis, state='disabled')
-        self.pipeline_btn.pack(side=tk.LEFT)
-        
-        # Progress bar
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, 
-                                           maximum=100, mode='determinate')
-        self.progress_bar.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        # Output section
-        output_frame = ttk.LabelFrame(main_frame, text="Output", padding="10")
-        output_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        output_frame.columnconfigure(0, weight=1)
-        output_frame.rowconfigure(0, weight=1)
-        
-        # Text output area
-        self.output_text = scrolledtext.ScrolledText(output_frame, height=15, width=70)
-        self.output_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Status bar
-        status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E))
-        status_frame.columnconfigure(1, weight=1)
-        
-        self.status_var = tk.StringVar(value="Ready")
-        status_label = ttk.Label(status_frame, textvariable=self.status_var)
-        status_label.grid(row=0, column=0, sticky=tk.W)
-        
-    def connect_to_salesforce(self):
-        """Handle Salesforce connection"""
-        try:
-            self.update_status("Connecting to Salesforce...")
-            self.progress_var.set(25)
-            
-            # Create connection using credentials from .env
-            self.sf = Salesforce(
-                username=self.config['username'],
-                password=self.config['password'],
-                security_token=self.config['security_token'],
-                instance_url=self.config['instance_url']
-            )
-            
-            # Test connection with a simple query
-            self.sf.query("SELECT Id FROM Account LIMIT 1")
-            
-            # Update UI
-            self.connection_status_var.set("Connected")
-            self.status_label.configure(foreground="green")
-            self.retrieve_btn.configure(state='normal')
-            self.clear_btn.configure(state='normal')
-            self.pipeline_btn.configure(state='normal')
-            
-            self.log_message("✓ Successfully connected to Salesforce")
-            self.update_status("Connected - Ready to retrieve data")
-            
-        except Exception as e:
-            self.log_message(f"Connection failed: {str(e)}")
-            self.update_status("Connection failed")
-            self.progress_var.set(0)
-            messagebox.showerror("Connection Error", 
-                               "Failed to connect to Salesforce. Please check your credentials in the .env file.")
+    print("\nDEBUG: Reading .env file contents:")
+    print("-" * 50)
     
-    def retrieve_salesforce_data(self):
-        """Handle Salesforce data retrieval"""
-        if not self.sf:
-            messagebox.showerror("Error", "Not connected to Salesforce")
-            return
+    env_vars = {}
+    try:
+        with open(env_path, 'r', encoding='utf-8-sig') as f:  # Note: using utf-8-sig to handle BOM
+            content = f.read()
+            print("Raw file content:")
+            print(repr(content))
+            print("\nProcessing lines:")
             
-        try:
-            self.update_status("Retrieving Salesforce data...")
-            self.log_message("Starting data retrieval from Salesforce...")
-            
-            # Run data retrieval in a separate thread
-            thread = threading.Thread(target=self._retrieve_data_thread)
-            thread.daemon = True
-            thread.start()
-            
-        except Exception as e:
-            self.log_message(f"Data retrieval failed: {str(e)}")
-            self.update_status("Data retrieval failed")
-            messagebox.showerror("Retrieval Error", f"Failed to retrieve data: {str(e)}")
-    
-    def _retrieve_data_thread(self):
-        """Perform data retrieval in a separate thread"""
-        try:
-            # Query Accounts
-            self.root.after(0, lambda: self.log_message("Querying Accounts..."))
-            self.root.after(0, lambda: self.progress_var.set(20))
-            
-            accounts = self.sf.query("""
-                SELECT Id, Name, Type, Industry, BillingCity, BillingCountry 
-                FROM Account 
-                ORDER BY CreatedDate DESC 
-                LIMIT 10
-            """)
-            
-            self.root.after(0, lambda: self.log_message(f"Found {len(accounts['records'])} accounts"))
-            self.root.after(0, lambda: self.progress_var.set(40))
-            
-            # Query Opportunities
-            self.root.after(0, lambda: self.log_message("Querying Opportunities..."))
-            opportunities = self.sf.query("""
-                SELECT Id, Name, StageName, Amount, CloseDate 
-                FROM Opportunity 
-                WHERE IsClosed = false
-                ORDER BY CreatedDate DESC 
-                LIMIT 10
-            """)
-            
-            self.root.after(0, lambda: self.log_message(f"Found {len(opportunities['records'])} open opportunities"))
-            self.root.after(0, lambda: self.progress_var.set(100))
-            
-            # Display results
-            self.root.after(0, lambda: self._display_results(accounts['records'], opportunities['records']))
-            
-        except Exception as e:
-            self.root.after(0, lambda: self.log_message(f"Error in data retrieval: {str(e)}"))
-            self.root.after(0, lambda: self.update_status("Data retrieval failed"))
-            self.root.after(0, lambda: self.progress_var.set(0))
-    
-    def _display_results(self, accounts, opportunities):
-        """Display the retrieved results"""
-        self.log_message("\nAccount Summary:")
-        for account in accounts:
-            self.log_message("-" * 50)
-            self.log_message(f"Name: {account['Name']}")
-            self.log_message(f"Type: {account.get('Type', 'N/A')}")
-            self.log_message(f"Industry: {account.get('Industry', 'N/A')}")
-            self.log_message(f"Location: {account.get('BillingCity', 'N/A')}, {account.get('BillingCountry', 'N/A')}")
-        
-        self.log_message("\nOpen Opportunities:")
-        for opp in opportunities:
-            self.log_message("-" * 50)
-            self.log_message(f"Name: {opp['Name']}")
-            self.log_message(f"Stage: {opp['StageName']}")
-            self.log_message(f"Amount: ${opp.get('Amount', 0):,.2f}")
-            self.log_message(f"Close Date: {opp['CloseDate']}")
-        
-        self.update_status("Data retrieval completed")
-        self.progress_var.set(0)
-    
-    def clear_data(self):
-        """Clear all data from the output"""
-        self.output_text.delete(1.0, tk.END)
-        self.log_message("All data cleared.")
-        self.update_status("Data cleared - Ready")
-    
-    def run_pipeline_analysis(self):
-        """Handle pipeline analysis"""
-        if not self.sf:
-            messagebox.showerror("Error", "Not connected to Salesforce")
-            return
-            
-        try:
-            self.update_status("Running pipeline analysis...")
-            self.log_message("Starting pipeline analysis...")
-            
-            # Query pipeline data
-            pipeline_data = self.sf.query("""
-                SELECT StageName, COUNT(Id) RecordCount, SUM(Amount) TotalAmount
-                FROM Opportunity 
-                WHERE IsClosed = false
-                GROUP BY StageName
-                ORDER BY StageName
-            """)
-            
-            # Display results
-            self.log_message("\nPipeline Analysis Results:")
-            self.log_message("-" * 50)
-            
-            total_amount = 0
-            total_deals = 0
-            
-            for stage in pipeline_data['records']:
-                count = int(stage['RecordCount'])
-                amount = float(stage.get('TotalAmount', 0))
-                total_amount += amount
-                total_deals += count
+            for line_num, line in enumerate(content.splitlines(), 1):
+                # Remove whitespace and comments
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    print(f"Line {line_num}: Skipping empty or comment line: {repr(line)}")
+                    continue
                 
-                self.log_message(f"Stage: {stage['StageName']}")
-                self.log_message(f"Number of Deals: {count}")
-                self.log_message(f"Total Value: ${amount:,.2f}")
-                self.log_message("-" * 50)
+                print(f"Processing line {line_num}: {repr(line)}")
+                
+                if '=' not in line:
+                    print(f"Warning: Line {line_num} is not in KEY=VALUE format: {repr(line)}")
+                    continue
+                
+                # Split on first = only
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip().strip("'").strip('"')
+                
+                if not key:
+                    print(f"Warning: Empty key on line {line_num}")
+                    continue
+                
+                if not value:
+                    print(f"Warning: Empty value for key {key} on line {line_num}")
+                    continue
+                
+                print(f"Found valid key-value pair: {key}=<value hidden>")
+                os.environ[key] = value
+                env_vars[key] = value
+                
+    except Exception as e:
+        print(f"Error reading file: {str(e)}")
+        raise
+    
+    print("\nFound environment variables:", list(env_vars.keys()))
+    
+    # Get credentials with fallbacks
+    credentials = {
+        'username': get_env_var('SF_USERNAME', 'SALESFORCE_USERNAME'),
+        'password': get_env_var('SF_PASSWORD', 'SALESFORCE_PASSWORD'),
+        'security_token': get_env_var('SF_SECURITY_TOKEN', 'SALESFORCE_SECURITY_TOKEN')
+    }
+    
+    # Verify required variables
+    missing_vars = [k for k, v in credentials.items() if v is None]
+    if missing_vars:
+        raise ValueError(f"Missing required credentials: {', '.join(missing_vars)}")
+    
+    print("-" * 50)
+    return credentials
+
+class PipelineAnalyzer:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Pipeline Analyzer")
+        self.root.geometry("800x600")
+        
+        # Load environment variables from src/.env
+        env_path = os.path.join(os.path.dirname(__file__), '.env')
+        print(f"\nLooking for .env file at: {env_path}")
+        print(f"File exists: {os.path.exists(env_path)}")
+        print(f"File size: {os.path.getsize(env_path)} bytes")
+        
+        try:
+            credentials = load_env_file(env_path)
+            print("\nEnvironment variables loaded successfully")
+            print("Credentials status:")
+            print(f"Username present: {bool(credentials.get('username'))}")
+            print(f"Password present: {bool(credentials.get('password'))}")
+            print(f"Security token present: {bool(credentials.get('security_token'))}")
+        except Exception as e:
+            print(f"\nError loading environment variables: {str(e)}")
+            raise
+        
+        # Initialize Salesforce connection
+        self.sf = Salesforce(
+            username=credentials['username'],
+            password=credentials['password'],
+            security_token=credentials['security_token']
+        )
+        
+        # Initialize services
+        self.report_service = SalesforceReportService(self.sf)
+        
+        # Create UI
+        self.create_ui()
+    
+    def create_ui(self):
+        """Create the user interface"""
+        # Report ID inputs
+        report_frame = ttk.LabelFrame(self.root, text="Report Configuration", padding=10)
+        report_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Label(report_frame, text="Pipeline Report ID:").grid(row=0, column=0, sticky=tk.W)
+        self.pipeline_report_id = ttk.Entry(report_frame, width=50)
+        self.pipeline_report_id.insert(0, self.report_service.pipeline_report_id)
+        self.pipeline_report_id.grid(row=0, column=1, padx=5)
+        
+        ttk.Label(report_frame, text="Closed Won Report ID:").grid(row=1, column=0, sticky=tk.W)
+        self.closed_won_report_id = ttk.Entry(report_frame, width=50)
+        self.closed_won_report_id.insert(0, self.report_service.closed_won_report_id)
+        self.closed_won_report_id.grid(row=1, column=1, padx=5)
+        
+        # Output configuration
+        output_frame = ttk.LabelFrame(self.root, text="Output Configuration", padding=10)
+        output_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Label(output_frame, text="Output Directory:").grid(row=0, column=0, sticky=tk.W)
+        self.output_dir = ttk.Entry(output_frame, width=50)
+        self.output_dir.insert(0, "output")
+        self.output_dir.grid(row=0, column=1, padx=5)
+        
+        # Action buttons
+        button_frame = ttk.Frame(self.root, padding=10)
+        button_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Button(
+            button_frame, 
+            text="Generate Pipeline Report", 
+            command=self.generate_pipeline_report
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(
+            button_frame, 
+            text="Generate Closed Won Report", 
+            command=self.generate_closed_won_report
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Status area
+        self.status_text = tk.Text(self.root, height=10, width=80)
+        self.status_text.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+    
+    def log_status(self, message: str):
+        """Add a message to the status area"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.status_text.insert(tk.END, f"[{timestamp}] {message}\n")
+        self.status_text.see(tk.END)
+        self.root.update()
+    
+    def ensure_output_dir(self) -> str:
+        """Ensure output directory exists and return path"""
+        output_path = self.output_dir.get()
+        os.makedirs(output_path, exist_ok=True)
+        return output_path
+    
+    def generate_pipeline_report(self):
+        """Generate pipeline report from Salesforce"""
+        try:
+            self.log_status("Fetching pipeline report data...")
+            report_id = self.pipeline_report_id.get()
             
-            self.log_message(f"\nTotal Pipeline:")
-            self.log_message(f"Total Deals: {total_deals}")
-            self.log_message(f"Total Value: ${total_amount:,.2f}")
+            # Get report data
+            report_data = self.report_service.get_report_data(report_id)
+            self.log_status(f"Retrieved {report_data.total_records} opportunities")
             
-            self.update_status("Pipeline analysis completed")
+            # Create snapshot
+            snapshot = self.report_service.create_pipeline_snapshot(report_data)
+            self.log_status(f"Created pipeline snapshot with total amount: ${snapshot.total_amount:,.2f}")
+            
+            # Export to CSV
+            output_path = self.ensure_output_dir()
+            self.report_service.export_to_csv(snapshot, output_path)
+            self.log_status(f"Exported pipeline data to {output_path}")
+            
+            messagebox.showinfo("Success", "Pipeline report generated successfully!")
             
         except Exception as e:
-            self.log_message(f"Pipeline analysis failed: {str(e)}")
-            self.update_status("Pipeline analysis failed")
-            messagebox.showerror("Analysis Error", f"Failed to run pipeline analysis: {str(e)}")
+            self.log_status(f"Error: {str(e)}")
+            messagebox.showerror("Error", f"Failed to generate pipeline report: {str(e)}")
     
-    def log_message(self, message: str):
-        """Add a message to the output text area"""
-        self.output_text.insert(tk.END, f"{message}\n")
-        self.output_text.see(tk.END)
-        
-    def update_status(self, status: str):
-        """Update the status bar"""
-        self.status_var.set(status)
-        self.root.update_idletasks()
-
-
-def main():
-    """Main function to start the application"""
-    root = tk.Tk()
-    app = SalesforceGUI(root)
+    def generate_closed_won_report(self):
+        """Generate closed won report from Salesforce"""
+        try:
+            self.log_status("Fetching closed won report data...")
+            report_id = self.closed_won_report_id.get()
+            
+            # Get report data
+            report_data = self.report_service.get_report_data(report_id)
+            self.log_status(f"Retrieved {report_data.total_records} closed won opportunities")
+            
+            # Create snapshot
+            snapshot = self.report_service.create_pipeline_snapshot(report_data)
+            self.log_status(f"Created closed won snapshot with total amount: ${snapshot.total_amount:,.2f}")
+            
+            # Export to CSV
+            output_path = self.ensure_output_dir()
+            self.report_service.export_to_csv(snapshot, output_path)
+            self.log_status(f"Exported closed won data to {output_path}")
+            
+            messagebox.showinfo("Success", "Closed won report generated successfully!")
+            
+        except Exception as e:
+            self.log_status(f"Error: {str(e)}")
+            messagebox.showerror("Error", f"Failed to generate closed won report: {str(e)}")
     
-    # Center the window on screen
-    root.update_idletasks()
-    width = root.winfo_width()
-    height = root.winfo_height()
-    x = (root.winfo_screenwidth() // 2) - (width // 2)
-    y = (root.winfo_screenheight() // 2) - (height // 2)
-    root.geometry(f'{width}x{height}+{x}+{y}')
-    
-    root.mainloop()
+    def run(self):
+        """Run the application"""
+        self.root.mainloop()
 
 
 if __name__ == "__main__":
-    main() 
+    app = PipelineAnalyzer()
+    app.run() 

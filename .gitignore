@@ -23,6 +23,11 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.venv/
+venv/
+
+# Generated files
+output/
 
 # IDE
 .idea/

@@ -17,4 +17,8 @@ __all__ = [
     'Account',
     'Contact',
     'Opportunity'
-] 
+]
+
+"""
+Models package initialization
+""" 

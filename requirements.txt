@@ -19,4 +19,8 @@ python-dotenv==1.0.0
 
 # Optional: For advanced Salesforce features
 # salesforce-bulk==2.2.0
-# salesforce-reporting==1.1.0 
+# salesforce-reporting==1.1.0
+
+# Additional dependencies
+tkinter  # Usually comes with Python
+python-dateutil==2.8.2 
